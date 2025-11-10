@@ -75,6 +75,35 @@ namespace TDDLab.Core.Tests.Processing
             processor.Verify(p => p.Process(invoice), Times.Once);
             messaging.Verify(m => m.WriteMessage(It.Is<Message<ProcessingResult>>(msg => ReferenceEquals(msg.Metadata, metadata) && Equals(msg.Data, processingResult))), Times.Once);
         }
+        
+        [Fact]
+        public void DoJob_Should_ReadProcessAndWriteMessage_When_ProcessingFails()
+        {
+            // Arrange
+            var config = new Mock<IConfigurationSettings>();
+            var messaging = new Mock<IMessagingFacility<Invoice, ProcessingResult>>();
+            var exceptionHandler = new Mock<IExceptionHandler>();
+            var processor = new Mock<IInvoiceProcessor>();
+
+            var invoice = InvoiceBuilder.Valid().Build();
+            var metadata = new Metadata().FromString("meta");
+            var inputMsg = new Message<Invoice> { Data = invoice, Metadata = metadata };
+
+            messaging.Setup(m => m.ReadMessage()).Returns(inputMsg);
+
+            var processingResult = ProcessingResult.Failed();
+            processor.Setup(p => p.Process(invoice)).Returns(processingResult);
+
+            var sut = new WorkerImpl(config.Object, messaging.Object, exceptionHandler.Object, processor.Object);
+
+            // Act
+            sut.DoJob();
+
+            // Assert
+            messaging.Verify(m => m.ReadMessage(), Times.Once);
+            processor.Verify(p => p.Process(invoice), Times.Once);
+            messaging.Verify(m => m.WriteMessage(It.Is<Message<ProcessingResult>>(msg => ReferenceEquals(msg.Metadata, metadata) && Equals(msg.Data, processingResult))), Times.Once);
+        }
 
         [Fact]
         public void DoJob_Should_UseExceptionHandler_When_ReadMessageThrows()
